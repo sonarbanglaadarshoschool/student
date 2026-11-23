@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == 'active';
+    }
+    function isStudent() {
+      return signedIn() && request.auth.token.role == 'student'
+        && request.auth.token.studentDocId is string;
+    }
+    function ownsStudentRecord() {
+      return isStudent() && resource.data.studentId == request.auth.token.studentDocId;
+    }
+
+    // Keep current admin access. Student accounts get read-only access to their own data.
+    match /students/{studentDocId} {
+      allow read: if isAdmin() || (isStudent() && studentDocId == request.auth.token.studentDocId);
+      allow write: if isAdmin();
+    }
+    match /attendance/{recordId} {
+      allow read: if isAdmin() || ownsStudentRecord();
+      allow write: if isAdmin();
+    }
+    match /results/{resultId} {
+      allow read: if isAdmin() || ownsStudentRecord();
+      allow write: if isAdmin();
+    }
+    match /fees/{feeId} {
+      allow read: if isAdmin() || ownsStudentRecord();
+      allow write: if isAdmin();
+    }
+    match /routines/{routineId} {
+      allow read: if isAdmin() || (isStudent() && resource.data.classId == request.auth.token.classId);
+      allow write: if isAdmin();
+    }
+    match /notices/{noticeId} {
+      allow read: if isAdmin() || (isStudent() && resource.data.status == 'published'
+        && resource.data.audience in ['সকল', 'শিক্ষার্থী', 'Everyone', 'Students', 'All']);
+      allow write: if isAdmin();
+    }
+    match /admissionApplications/{applicationId} {
+      allow create: if request.auth == null
+        && request.resource.data.status == 'pending'
+        && request.resource.data.nameEn is string
+        && request.resource.data.nameEn.size() <= 120
+        && request.resource.data.nameBn is string
+        && request.resource.data.nameBn.size() <= 120
+        && request.resource.data.guardianName is string
+        && request.resource.data.guardianMobile is string
+        && request.resource.data.admissionClass is string
+        && request.resource.data.academicYear is string
+        && request.resource.data.applicationNo is string;
+      allow read, update, delete: if isAdmin();
+    }
+    match /{document=**} { allow read, write: if isAdmin(); }
+  }
+}
