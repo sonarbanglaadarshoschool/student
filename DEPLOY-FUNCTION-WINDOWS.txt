@@ -1,3 +1,0 @@
-OLD FILE — DO NOT DEPLOY A FIREBASE CLOUD FUNCTION FOR THIS VERSION.
-
-The free-tier portal login now uses Cloudflare Worker `worker.js`. Follow the setup in README.md sections B, C, and D. Do not run `firebase deploy --only functions`.
