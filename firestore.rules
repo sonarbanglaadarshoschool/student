@@ -1,0 +1,89 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin"
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.status == "active";
+    }
+    function isStudent() {
+      return request.auth != null
+        && request.auth.token.role == "student"
+        && request.auth.token.studentDocId is string;
+    }
+    function ownsStudentRecord() {
+      return isStudent() && resource.data.studentId == request.auth.token.studentDocId;
+    }
+    function validAdmissionApplication() {
+      let data = request.resource.data;
+      return data.keys().hasOnly([
+        "studentNameEnglish", "studentNameBangla", "dateOfBirth", "gender",
+        "bloodGroup", "religion", "nationality", "birthRegistrationNumber",
+        "studentPhotoUrl", "fatherName", "motherName", "guardianName",
+        "guardianRelation", "guardianMobileNumber", "village", "postOffice",
+        "upazila", "district", "admissionClass", "section", "academicYear",
+        "admissionDate", "status", "createdAt"
+      ])
+      && data.keys().hasAll([
+        "studentNameEnglish", "studentNameBangla", "dateOfBirth", "gender",
+        "nationality", "fatherName", "motherName", "guardianName",
+        "guardianRelation", "guardianMobileNumber", "village", "postOffice",
+        "upazila", "district", "admissionClass", "academicYear",
+        "admissionDate", "status", "createdAt"
+      ])
+      && data.studentNameEnglish is string && data.studentNameEnglish.size() > 0 && data.studentNameEnglish.size() <= 100
+      && data.studentNameBangla is string && data.studentNameBangla.size() > 0 && data.studentNameBangla.size() <= 100
+      && data.dateOfBirth is string && data.gender in ["Male", "Female", "Other"]
+      && data.nationality is string && data.nationality.size() <= 50
+      && (!("bloodGroup" in data) || data.bloodGroup is string)
+      && (!("religion" in data) || data.religion is string)
+      && (!("birthRegistrationNumber" in data) || data.birthRegistrationNumber is string)
+      && (!("studentPhotoUrl" in data) || data.studentPhotoUrl is string)
+      && data.fatherName is string && data.fatherName.size() <= 100
+      && data.motherName is string && data.motherName.size() <= 100
+      && data.guardianName is string && data.guardianName.size() > 0 && data.guardianName.size() <= 100
+      && data.guardianRelation is string && data.guardianRelation.size() <= 50
+      && data.guardianMobileNumber is string && data.guardianMobileNumber.size() >= 6 && data.guardianMobileNumber.size() <= 20
+      && data.village is string && data.village.size() <= 100
+      && data.postOffice is string && data.postOffice.size() <= 100
+      && data.upazila is string && data.upazila.size() <= 100
+      && data.district is string && data.district.size() <= 100
+      && data.admissionClass is string && data.admissionClass.size() > 0 && data.admissionClass.size() <= 50
+      && (!("section" in data) || data.section is string)
+      && data.academicYear is string && data.admissionDate is string
+      && data.status == "pending" && data.createdAt == request.time;
+    }
+    match /users/{userId} {
+      allow read, write: if isAdmin()
+        || (request.auth != null && request.auth.uid == userId && resource.data.role != "admin");
+    }
+    match /admissionApplications/{applicationId} {
+      allow create: if validAdmissionApplication();
+      allow read, update, delete: if isAdmin();
+    }
+    // Student Portal: read-only access to the authenticated student's own records.
+    match /students/{studentDocId} {
+      allow read: if isAdmin() || (isStudent() && studentDocId == request.auth.token.studentDocId);
+      allow write: if isAdmin();
+    }
+    match /attendance/{recordId} {
+      allow read: if isAdmin() || ownsStudentRecord();
+      allow write: if isAdmin();
+    }
+    match /results/{resultId} {
+      allow read: if isAdmin() || ownsStudentRecord();
+      allow write: if isAdmin();
+    }
+    match /routines/{routineId} {
+      allow read: if isAdmin() || (isStudent() && resource.data.classId == request.auth.token.classId);
+      allow write: if isAdmin();
+    }
+    match /notices/{noticeId} {
+      allow read: if isAdmin() || (isStudent() && resource.data.status == "published"
+        && resource.data.audience in ["সকল", "শিক্ষার্থী", "Everyone", "Students", "All"]);
+      allow write: if isAdmin();
+    }
+    match /{document=**} { allow read, write: if isAdmin(); }
+  }
+}
