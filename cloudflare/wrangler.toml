@@ -1,7 +1,0 @@
-name = "sbas-student-login"
-main = "../worker.js"
-compatibility_date = "2026-11-24"
-workers_dev = true
-
-[vars]
-FIREBASE_PROJECT_ID = "sbas-2bfe2"
