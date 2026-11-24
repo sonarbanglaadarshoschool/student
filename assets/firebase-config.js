@@ -9,4 +9,4 @@ window.SBAS_FIREBASE_CONFIG = {
 };
 
 // Set this to the Worker URL after deploying worker.js to Cloudflare.
-window.SBAS_STUDENT_LOGIN_API = 'https://sbas-student-login.YOUR-SUBDOMAIN.workers.dev';
+window.SBAS_STUDENT_LOGIN_API = 'https://sbas-student-login.sbas-student-portal-bd.workers.dev';
